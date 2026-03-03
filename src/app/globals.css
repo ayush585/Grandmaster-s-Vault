@@ -1,0 +1,299 @@
+@import "tailwindcss";
+
+/* === Local Font Faces === */
+@font-face {
+  font-family: 'Cormorant Garamond';
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url('/fonts/cormorant-garamond/regular.ttf') format('truetype');
+}
+@font-face {
+  font-family: 'Cormorant Garamond';
+  font-style: normal;
+  font-weight: 600;
+  font-display: swap;
+  src: url('/fonts/cormorant-garamond/semibold.ttf') format('truetype');
+}
+@font-face {
+  font-family: 'Cormorant Garamond';
+  font-style: normal;
+  font-weight: 700;
+  font-display: swap;
+  src: url('/fonts/cormorant-garamond/bold.ttf') format('truetype');
+}
+@font-face {
+  font-family: 'Cormorant Garamond';
+  font-style: italic;
+  font-weight: 400;
+  font-display: swap;
+  src: url('/fonts/cormorant-garamond/italic.ttf') format('truetype');
+}
+
+@font-face {
+  font-family: 'DM Sans';
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url('/fonts/dm-sans/regular.ttf') format('truetype');
+}
+@font-face {
+  font-family: 'DM Sans';
+  font-style: normal;
+  font-weight: 500;
+  font-display: swap;
+  src: url('/fonts/dm-sans/medium.ttf') format('truetype');
+}
+@font-face {
+  font-family: 'DM Sans';
+  font-style: normal;
+  font-weight: 600;
+  font-display: swap;
+  src: url('/fonts/dm-sans/semibold.ttf') format('truetype');
+}
+@font-face {
+  font-family: 'DM Sans';
+  font-style: normal;
+  font-weight: 700;
+  font-display: swap;
+  src: url('/fonts/dm-sans/bold.ttf') format('truetype');
+}
+
+@font-face {
+  font-family: 'JetBrains Mono';
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url('/fonts/jetbrains-mono/regular.ttf') format('truetype');
+}
+@font-face {
+  font-family: 'JetBrains Mono';
+  font-style: normal;
+  font-weight: 500;
+  font-display: swap;
+  src: url('/fonts/jetbrains-mono/medium.ttf') format('truetype');
+}
+@font-face {
+  font-family: 'JetBrains Mono';
+  font-style: normal;
+  font-weight: 600;
+  font-display: swap;
+  src: url('/fonts/jetbrains-mono/semibold.ttf') format('truetype');
+}
+
+@theme {
+  --color-bg-deep: #0c0c10;
+  --color-bg-primary: #111117;
+  --color-bg-secondary: #1a1a23;
+  --color-bg-tertiary: #22222e;
+  --color-bg-elevated: #2a2a38;
+  --color-bg-hover: #32323f;
+
+  --color-gold: #c9a227;
+  --color-gold-bright: #e2bb3a;
+  --color-gold-dim: #8a7020;
+
+  --color-text-primary: #e8e5df;
+  --color-text-secondary: #9994a8;
+  --color-text-tertiary: #6b6679;
+  --color-text-muted: #4a4558;
+
+  --color-sq-light: #edd6ae;
+  --color-sq-dark: #b08762;
+
+  --color-brilliant: #26c9c3;
+  --color-great: #5c9fe6;
+  --color-best: #7bc96a;
+  --color-good-move: #a0c96a;
+  --color-book: #9994a8;
+  --color-inaccuracy: #e8c63a;
+  --color-mistake: #e69a3b;
+  --color-blunder: #e05555;
+
+  --color-border: rgba(255, 255, 255, 0.06);
+  --color-border-accent: rgba(201, 162, 39, 0.25);
+
+  --font-display: 'Cormorant Garamond', 'Georgia', serif;
+  --font-body: 'DM Sans', 'Segoe UI', 'Helvetica Neue', sans-serif;
+  --font-mono: 'JetBrains Mono', 'Consolas', 'Courier New', monospace;
+}
+
+/* Base */
+html {
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+body {
+  font-family: var(--font-body);
+  background: var(--color-bg-deep);
+  color: var(--color-text-primary);
+}
+
+/* Scrollbar */
+::-webkit-scrollbar { width: 6px; height: 6px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: var(--color-bg-elevated); border-radius: 3px; }
+::-webkit-scrollbar-thumb:hover { background: var(--color-bg-hover); }
+
+/* Grain overlay */
+.grain-overlay {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 9999;
+  opacity: 0.022;
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+  background-size: 128px 128px;
+}
+
+/* Animations */
+@keyframes shimmer {
+  0%, 100% { filter: drop-shadow(0 0 6px rgba(201, 162, 39, 0.2)); }
+  50% { filter: drop-shadow(0 0 14px rgba(201, 162, 39, 0.45)); }
+}
+
+@keyframes spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+@keyframes fadeInUp {
+  from { opacity: 0; transform: translateY(12px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes slideIn {
+  from { opacity: 0; transform: translateY(20px) scale(0.97); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+/* Modal transitions */
+.modal-enter { animation: slideIn 0.25s cubic-bezier(0.22, 1, 0.36, 1); }
+
+/* Move list active highlight */
+.move-cell-active {
+  background: var(--color-bg-elevated) !important;
+  color: var(--color-gold) !important;
+  font-weight: 600;
+}
+
+/* Board piece overrides for react-chessboard */
+[data-boardid] {
+  border-radius: 2px !important;
+  box-shadow: 0 8px 32px rgba(0,0,0,0.5), 0 0 0 2px rgba(201, 162, 39, 0.3) !important;
+}
+
+/* === Print Styles === */
+@media print {
+  /* Reset to white background for printing */
+  html, body {
+    background: #fff !important;
+    color: #000 !important;
+    font-size: 11pt;
+  }
+
+  /* Hide non-printable elements */
+  .grain-overlay,
+  header,
+  nav,
+  .no-print,
+  button:not(.print-keep),
+  [role="dialog"],
+  .modal-enter {
+    display: none !important;
+  }
+
+  /* Reset dark theme colors for print */
+  * {
+    color: #000 !important;
+    background: transparent !important;
+    border-color: #ccc !important;
+    box-shadow: none !important;
+  }
+
+  /* Page setup */
+  @page {
+    margin: 1.5cm 2cm;
+    size: A4;
+  }
+
+  /* Print report layout */
+  .print-report {
+    display: block !important;
+    page-break-inside: avoid;
+  }
+
+  .print-report h1 {
+    font-size: 18pt;
+    font-weight: bold;
+    margin-bottom: 8pt;
+    border-bottom: 2px solid #000;
+    padding-bottom: 4pt;
+  }
+
+  .print-report h2 {
+    font-size: 14pt;
+    font-weight: bold;
+    margin-top: 12pt;
+    margin-bottom: 6pt;
+  }
+
+  .print-report table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 10pt;
+  }
+
+  .print-report th,
+  .print-report td {
+    border: 1px solid #ccc;
+    padding: 3pt 6pt;
+    text-align: left;
+  }
+
+  .print-report th {
+    background: #f0f0f0 !important;
+    font-weight: bold;
+  }
+
+  /* Move list for print */
+  .print-moves {
+    column-count: 2;
+    column-gap: 20pt;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 9pt;
+    line-height: 1.6;
+  }
+
+  .print-moves .blunder { font-weight: bold; text-decoration: underline; }
+  .print-moves .mistake { font-weight: bold; }
+  .print-moves .inaccuracy { font-style: italic; }
+
+  /* Eval chart - render as-is if visible */
+  .recharts-wrapper {
+    page-break-inside: avoid;
+  }
+
+  /* Game info grid */
+  .print-game-info {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 4pt 16pt;
+    margin-bottom: 12pt;
+    font-size: 10pt;
+  }
+
+  /* Accuracy boxes */
+  .print-accuracy {
+    display: flex;
+    gap: 24pt;
+    margin: 8pt 0 12pt;
+    font-size: 11pt;
+  }
+
+  .print-accuracy .value {
+    font-size: 18pt;
+    font-weight: bold;
+  }
+}
