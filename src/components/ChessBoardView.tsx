@@ -181,6 +181,11 @@ export default function ChessBoardView({
             Analyze
           </button>
         </div>
+        {gameLoaded && (
+          <span className="text-[0.65rem] text-text-muted ml-9">
+            Use <kbd className="px-1 py-0.5 bg-bg-tertiary rounded text-[0.6rem]">←</kbd> <kbd className="px-1 py-0.5 bg-bg-tertiary rounded text-[0.6rem]">→</kbd> arrow keys to navigate · <kbd className="px-1 py-0.5 bg-bg-tertiary rounded text-[0.6rem]">Home</kbd> / <kbd className="px-1 py-0.5 bg-bg-tertiary rounded text-[0.6rem]">End</kbd> to jump
+          </span>
+        )}
       </div>
 
       {/* Export / Print / Share buttons (after analysis) */}
@@ -276,13 +281,13 @@ export default function ChessBoardView({
             {whiteName && (
               <div className="flex flex-col gap-0.5">
                 <span className="text-[0.65rem] uppercase tracking-[0.12em] text-text-tertiary font-semibold">White</span>
-                <span className="text-[0.9rem] text-text-primary font-medium">{whiteName}</span>
+                <span className="text-[0.9rem] text-text-primary font-medium truncate" title={whiteName}>{whiteName}</span>
               </div>
             )}
             {blackName && (
               <div className="flex flex-col gap-0.5">
                 <span className="text-[0.65rem] uppercase tracking-[0.12em] text-text-tertiary font-semibold">Black</span>
-                <span className="text-[0.9rem] text-text-primary font-medium">{blackName}</span>
+                <span className="text-[0.9rem] text-text-primary font-medium truncate" title={blackName}>{blackName}</span>
               </div>
             )}
             {tournament && (

@@ -15,6 +15,43 @@ const IDB_NAME = 'grandmasters-vault';
 const IDB_VERSION = 2;
 const IDB_STORE = 'games';
 
+// Rate limiting
+const RATE_LIMIT_WINDOW = 60000; // 1 minute
+const MAX_WRITES_PER_WINDOW = 30;
+
+const writeTimestamps: Map<string, number[]> = new Map();
+
+function checkRateLimit(userId: string): boolean {
+  const now = Date.now();
+  const timestamps = writeTimestamps.get(userId) || [];
+  const recent = timestamps.filter(t => now - t < RATE_LIMIT_WINDOW);
+  
+  if (recent.length >= MAX_WRITES_PER_WINDOW) {
+    console.warn('[Storage] Rate limit exceeded for user:', userId);
+    return false;
+  }
+  
+  recent.push(now);
+  writeTimestamps.set(userId, recent);
+  return true;
+}
+
+function cleanupOldTimestamps(): void {
+  const now = Date.now();
+  for (const [userId, timestamps] of writeTimestamps.entries()) {
+    const recent = timestamps.filter(t => now - t < RATE_LIMIT_WINDOW);
+    if (recent.length === 0) {
+      writeTimestamps.delete(userId);
+    } else {
+      writeTimestamps.set(userId, recent);
+    }
+  }
+}
+
+if (typeof window !== 'undefined') {
+  setInterval(cleanupOldTimestamps, RATE_LIMIT_WINDOW);
+}
+
 // IndexedDB helpers
 function openIDB(): Promise<IDBDatabase> {
   return new Promise((resolve, reject) => {
@@ -72,6 +109,10 @@ async function saveToIDB(game: GameData): Promise<string> {
 }
 
 export async function saveGame(game: GameData, userId: string): Promise<string> {
+  if (!checkRateLimit(userId)) {
+    throw new Error('Too many requests. Please wait a moment before saving again.');
+  }
+
   game.id = game.id || generateId();
   game.savedAt = game.savedAt || new Date().toISOString();
   game.userId = userId;
@@ -173,6 +214,10 @@ export async function searchGames(queryStr: string, userId?: string): Promise<Ga
 
 export async function deleteGame(id: string, userId?: string): Promise<void> {
   if (userId) {
+    if (!checkRateLimit(userId)) {
+      throw new Error('Too many requests. Please wait a moment before trying again.');
+    }
+
     const col = userGamesCollection(userId);
     if (col) {
       try {

@@ -4,9 +4,32 @@ import type { GameData } from '@/types';
 
 const SHARED_COLLECTION = 'sharedGames';
 
+const SHARE_RATE_LIMIT_WINDOW = 60000; // 1 minute
+const MAX_SHARES_PER_WINDOW = 10;
+const shareTimestamps: Map<string, number[]> = new Map();
+
+function checkShareRateLimit(userId: string): boolean {
+  const now = Date.now();
+  const timestamps = shareTimestamps.get(userId) || [];
+  const recent = timestamps.filter(t => now - t < SHARE_RATE_LIMIT_WINDOW);
+  
+  if (recent.length >= MAX_SHARES_PER_WINDOW) {
+    console.warn('[Sharing] Rate limit exceeded for user:', userId);
+    return false;
+  }
+  
+  recent.push(now);
+  shareTimestamps.set(userId, recent);
+  return true;
+}
+
 export async function shareGame(game: GameData, userId: string): Promise<string> {
   if (game.userId !== userId) {
     throw new Error('You can only share your own games');
+  }
+
+  if (!checkShareRateLimit(userId)) {
+    throw new Error('Too many share requests. Please wait a moment.');
   }
 
   const db = getDb();

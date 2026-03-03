@@ -192,7 +192,7 @@ function uciToSan(fen: string, uciMove: string): string {
   }
 }
 
-function classifyMove(cpLoss: number): MoveClassification {
+export function classifyMove(cpLoss: number): MoveClassification {
   if (cpLoss <= 0) return 'best';
   if (cpLoss <= 25) return 'good';
   if (cpLoss <= 50) return 'inaccuracy';
