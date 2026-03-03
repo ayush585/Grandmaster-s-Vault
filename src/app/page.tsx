@@ -14,6 +14,7 @@ import AnalysisProgressModal from '@/components/AnalysisProgressModal';
 import AuthModal from '@/components/AuthModal';
 import GameLibrary from '@/components/GameLibrary';
 import Toast from '@/components/Toast';
+import AnalysisSidebar from '@/components/AnalysisSidebar';
 import { Chess } from 'chess.js';
 import { parseMoves } from '@/lib/pgn-parser';
 import { initEngine, analyzeGame, computeAccuracy, stopEngine } from '@/lib/engine';
@@ -60,6 +61,7 @@ function HomeContent() {
 
   // Library refresh
   const [libraryRefresh, setLibraryRefresh] = useState(0);
+  const [mobileDrawerOpen, setMobileDrawerOpen] = useState(false);
 
   const showToast = useCallback((message: string, type: 'success' | 'error' = 'success') => {
     setToast({ message, type, visible: true });
@@ -440,6 +442,43 @@ function HomeContent() {
               </div>
             )}
           </aside>
+
+{/* Mobile hamburger */}
+<button
+  onClick={() => setMobileDrawerOpen(true)}
+  className="lg:hidden fixed top-4 left-4 z-50 p-2 bg-bg-primary border border-border rounded-md"
+  aria-label="Open analysis panel"
+>☰</button>
+
+{mobileDrawerOpen && (
+  <>
+    <div
+      className="fixed inset-0 bg-black bg-opacity-50 z-40"
+      onClick={() => setMobileDrawerOpen(false)}
+    />
+    <aside className="fixed right-0 top-0 h-full w-80 bg-bg-deep z-50 p-5 overflow-y-auto">
+      <button
+        onClick={() => setMobileDrawerOpen(false)}
+        className="mb-2 text-text-primary"
+        aria-label="Close analysis panel"
+      >✕ Close</button>
+      <AnalysisSidebar
+        engineDepth={engineDepth}
+        engineEval={engineEval}
+        engineMate={engineMate}
+        enginePV={enginePV}
+        isAnalyzing={isAnalyzing}
+        moves={moves}
+        analysis={analysis}
+        currentMove={currentMove}
+        onNavigate={setCurrentMove}
+        whiteAccuracy={whiteAccuracy}
+        blackAccuracy={blackAccuracy}
+        gameData={gameData}
+      />
+    </aside>
+  </>
+)}
         </main>
       ) : (
         <GameLibrary onLoadGame={handleLoadFromLibrary} refreshTrigger={libraryRefresh} userId={user?.uid} />
