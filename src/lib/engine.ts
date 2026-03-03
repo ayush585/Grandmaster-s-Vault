@@ -9,6 +9,24 @@ let ready = false;
 let messageHandlers: Array<(msg: string) => void> = [];
 let analysisQueue: Promise<void> = Promise.resolve();
 
+// ---------------------------------------------------------------------------
+// Engine analysis timeout configuration
+// ---------------------------------------------------------------------------
+/**
+ * Default timeout for a single position analysis (in milliseconds).
+ * Exported so the UI layer can reference the same value for user messages.
+ */
+export const ANALYZE_TIMEOUT_MS = 30_000; // 30 seconds – can be adjusted via env if needed
+
+/**
+ * Helper to expose the timeout value – useful for UI components that want to
+ * display the timeout duration without importing the constant directly.
+ */
+export function getAnalysisTimeout(): number {
+  return ANALYZE_TIMEOUT_MS;
+}
+
+
 export type AnalysisDepth = 12 | 16 | 18 | 20;
 export const DEPTH_LABELS: Record<AnalysisDepth, string> = {
   12: 'Quick',
@@ -127,7 +145,10 @@ export function analyzePosition(fen: string, depth = 18): Promise<EngineEval> {
 }
 
 async function doAnalyzePosition(fen: string, depth = 18): Promise<EngineEval> {
-  return new Promise((resolve) => {
+  // NOTE: This promise now *rejects* on timeout rather than returning a
+  // placeholder result. Callers must handle the rejection (the higher‑level
+  // analyzeGame wrapper already catches errors and surfaces them to the UI).
+  return new Promise<EngineEval>((resolve, reject) => {
     const result: EngineEval = { eval: 0, mate: null, bestMove: '', pv: '', depth: 0 };
     let cleanedUp = false;
 
@@ -140,8 +161,9 @@ async function doAnalyzePosition(fen: string, depth = 18): Promise<EngineEval> {
 
     const timeout = setTimeout(() => {
       cleanup();
-      resolve(result);
-    }, 30000);
+      // Reject instead of silently returning a default result.
+      reject(new Error(`Engine analysis timed out after ${ANALYZE_TIMEOUT_MS / 1000}s`));
+    }, ANALYZE_TIMEOUT_MS);
 
     const handler = (msg: string) => {
       if (cleanedUp) return;

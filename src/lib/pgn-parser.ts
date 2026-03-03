@@ -1,7 +1,7 @@
 import { Chess } from 'chess.js';
 
 const MAX_INPUT_SIZE = 500_000;
-const MAX_MOVES = 500;
+const MAX_MOVES = Number(process.env.NEXT_PUBLIC_MAX_MOVES) || 500; // configurable via env
 
 export interface ParseResult {
   success: boolean;

@@ -1,4 +1,6 @@
-rules_version = '2';
+// NOTE: Client‑side rate limiting is enforced in the web app, but for stronger protection you should
+// add server‑side throttling (e.g., via Cloud Functions) or monitor write patterns in Firebase.
+
 service cloud.firestore {
   match /databases/{database}/documents {
     

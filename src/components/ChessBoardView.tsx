@@ -136,24 +136,26 @@ export default function ChessBoardView({
       {/* Controls */}
       <div className="flex flex-col sm:flex-row items-center justify-between w-full max-w-[512px] mx-auto mt-4">
         <div className="flex gap-1">
-          {[
-            { label: '⏮', title: 'First move', action: () => onNavigate(0) },
-            { label: '◁', title: 'Previous', action: () => onNavigate(Math.max(0, currentMove - 1)) },
-            { label: '▷', title: 'Next', action: () => onNavigate(Math.min(totalMoves, currentMove + 1)) },
-            { label: '⏭', title: 'Last move', action: () => onNavigate(totalMoves) },
-          ].map((btn) => (
-            <button
-              key={btn.title}
-              onClick={btn.action}
-              title={btn.title}
-              disabled={!gameLoaded}
-              className="w-10 h-9 border border-border bg-bg-secondary text-text-secondary text-[0.85rem] rounded-md
+            {[
+              { label: '⏮', title: 'First move', ariaLabel: 'Go to first move', action: () => onNavigate(0) },
+              { label: '◁', title: 'Previous', ariaLabel: 'Previous move', action: () => onNavigate(Math.max(0, currentMove - 1)) },
+              { label: '▷', title: 'Next', ariaLabel: 'Next move', action: () => onNavigate(Math.min(totalMoves, currentMove + 1)) },
+              { label: '⏭', title: 'Last move', ariaLabel: 'Go to last move', action: () => onNavigate(totalMoves) },
+            ].map((btn) => (
+              <button
+                key={btn.title}
+                onClick={btn.action}
+                title={btn.title}
+                aria-label={btn.ariaLabel}
+                disabled={!gameLoaded}
+                className="w-10 h-9 border border-border bg-bg-secondary text-text-secondary text-[0.85rem] rounded-md
                 hover:bg-bg-tertiary hover:text-text-primary hover:border-border-accent active:scale-95
                 transition-all disabled:opacity-30 disabled:cursor-not-allowed cursor-pointer flex items-center justify-center"
-            >
-              {btn.label}
-            </button>
-          ))}
+              >
+                {btn.label}
+              </button>
+            ))}
+
         </div>
         <div className="flex gap-1">
           <button

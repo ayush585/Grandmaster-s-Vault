@@ -12,12 +12,13 @@ import { getDb, isFirebaseConfigured } from './firebase';
 import type { GameData } from '@/types';
 
 const IDB_NAME = 'grandmasters-vault';
-const IDB_VERSION = 2;
+
 const IDB_STORE = 'games';
 
-// Rate limiting
-const RATE_LIMIT_WINDOW = 60000; // 1 minute
-const MAX_WRITES_PER_WINDOW = 30;
+// Rate limiting – configurable via env (defaults: 1 min window, 30 writes)
+const RATE_LIMIT_WINDOW = Number(process.env.NEXT_PUBLIC_RATE_LIMIT_WINDOW_MS) || 60000; // 1 minute
+const MAX_WRITES_PER_WINDOW = Number(process.env.NEXT_PUBLIC_MAX_WRITES_PER_WINDOW) || 30;
+
 
 const writeTimestamps: Map<string, number[]> = new Map();
 
@@ -53,20 +54,41 @@ if (typeof window !== 'undefined') {
 }
 
 // IndexedDB helpers
+const IDB_VERSION = 3; // bump version for future migrations
+
+// IndexedDB helpers
 function openIDB(): Promise<IDBDatabase> {
   return new Promise((resolve, reject) => {
     const req = indexedDB.open(IDB_NAME, IDB_VERSION);
     req.onupgradeneeded = (e) => {
       const db = (e.target as IDBOpenDBRequest).result;
-      if (!db.objectStoreNames.contains(IDB_STORE)) {
+      const oldVersion = (e as IDBVersionChangeEvent).oldVersion;
+
+      // Version 1 – initial store and indexes
+      if (oldVersion < 1) {
         const store = db.createObjectStore(IDB_STORE, { keyPath: 'id' });
         store.createIndex('userId', 'userId', { unique: false });
         store.createIndex('savedAt', 'savedAt', { unique: false });
-      } else {
+      }
+
+      // Version 2 – ensure missing indexes (backward‑compatibility)
+      if (oldVersion < 2) {
         const tx = (e.target as IDBOpenDBRequest).transaction!;
         const store = tx.objectStore(IDB_STORE);
         if (!store.indexNames.contains('userId')) {
           store.createIndex('userId', 'userId', { unique: false });
+        }
+        if (!store.indexNames.contains('savedAt')) {
+          store.createIndex('savedAt', 'savedAt', { unique: false });
+        }
+      }
+
+      // Version 3 – add a new index for "date" (used for filtering by game date)
+      if (oldVersion < 3) {
+        const tx = (e.target as IDBOpenDBRequest).transaction!;
+        const store = tx.objectStore(IDB_STORE);
+        if (!store.indexNames.contains('date')) {
+          store.createIndex('date', 'date', { unique: false });
         }
       }
     };
@@ -74,6 +96,7 @@ function openIDB(): Promise<IDBDatabase> {
     req.onerror = () => reject(req.error);
   });
 }
+
 
 function generateId(): string {
   return `game_${Date.now()}_${Math.random().toString(36).substring(2, 11)}`;
@@ -108,7 +131,7 @@ async function saveToIDB(game: GameData): Promise<string> {
   });
 }
 
-export async function saveGame(game: GameData, userId: string): Promise<string> {
+export async function saveGame(game: GameData, userId: string): Promise<{ id: string; cloudSaved: boolean }> {
   if (!checkRateLimit(userId)) {
     throw new Error('Too many requests. Please wait a moment before saving again.');
   }
@@ -121,22 +144,26 @@ export async function saveGame(game: GameData, userId: string): Promise<string> 
 
   // Firebase — save to users/{userId}/games/{gameId}
   const col = userGamesCollection(userId);
+  let cloudSaved = true;
   if (col) {
     try {
       await setDoc(doc(col, game.id), game);
     } catch (e) {
       console.warn('[Storage] Cloud save failed:', e);
+      cloudSaved = false;
     }
   }
 
   // IndexedDB with 1 retry
   try {
-    return await saveToIDB(game);
+    await saveToIDB(game);
+    return { id: game.id, cloudSaved };
   } catch (firstError) {
     console.warn('[Storage] First IDB save attempt failed, retrying:', firstError);
     try {
       await new Promise((r) => setTimeout(r, 200));
-      return await saveToIDB(game);
+      await saveToIDB(game);
+      return { id: game.id, cloudSaved };
     } catch (retryError) {
       throw new Error(`Failed to save game after retry: ${retryError}`);
     }

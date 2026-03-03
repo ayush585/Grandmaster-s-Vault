@@ -37,6 +37,7 @@ export default function Header({ currentView, onViewChange, onUploadClick, user,
           <nav className="hidden sm:flex gap-1">
             <button
               onClick={() => onViewChange('analysis')}
+              aria-current={currentView === 'analysis' ? 'page' : undefined}
               className={`flex items-center gap-2 px-4 py-2 rounded-md text-[0.85rem] font-medium transition-all cursor-pointer
                 ${currentView === 'analysis'
                   ? 'bg-bg-tertiary text-gold'
@@ -53,6 +54,7 @@ export default function Header({ currentView, onViewChange, onUploadClick, user,
 
             <button
               onClick={() => onViewChange('library')}
+              aria-current={currentView === 'library' ? 'page' : undefined}
               className={`flex items-center gap-2 px-4 py-2 rounded-md text-[0.85rem] font-medium transition-all cursor-pointer
                 ${currentView === 'library'
                   ? 'bg-bg-tertiary text-gold'
@@ -67,6 +69,7 @@ export default function Header({ currentView, onViewChange, onUploadClick, user,
             <button
               onClick={onUploadClick}
               disabled={!user}
+              aria-disabled={!user}
               title={user ? 'Upload a game' : 'Sign in to upload games'}
               className="flex items-center gap-2 px-4 py-2 rounded-md text-[0.85rem] font-semibold ml-2 transition-all cursor-pointer
                 bg-gradient-to-br from-gold-dim to-gold text-bg-deep hover:from-gold hover:to-gold-bright hover:shadow-[0_0_20px_rgba(201,162,39,0.15)]

@@ -21,8 +21,9 @@ interface EvalChartProps {
 }
 
 export default function EvalChart({ analysis, currentMove, onMoveClick }: EvalChartProps) {
+  const MAX_POINTS = 1000; // cap points for performance
   const data = useMemo(() => {
-    return analysis.map((m, i) => ({
+    const raw = analysis.map((m, i) => ({
       move: Math.ceil((i + 1) / 2),
       ply: i + 1,
       eval: Math.max(-8, Math.min(8, m.eval)),
@@ -31,7 +32,12 @@ export default function EvalChart({ analysis, currentMove, onMoveClick }: EvalCh
       classification: m.classification,
       isWhite: m.isWhiteMove,
     }));
+    if (raw.length <= MAX_POINTS) return raw;
+    // Down‑sample evenly
+    const step = Math.ceil(raw.length / MAX_POINTS);
+    return raw.filter((_v, idx) => idx % step === 0);
   }, [analysis]);
+
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const handleClick = useCallback(

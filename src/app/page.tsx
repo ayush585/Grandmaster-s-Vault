@@ -139,22 +139,26 @@ function HomeContent() {
       savedAt: '',
     };
 
-    try {
-      const id = await saveGame(game, user.uid);
-      game.id = id;
-      setGameData(game);
-      setLibraryRefresh((n) => n + 1);
+      try {
+        const { id, cloudSaved } = await saveGame(game, user.uid);
+        game.id = id;
+        setGameData(game);
+        setLibraryRefresh((n) => n + 1);
 
-      let msg = `Game loaded: ${result.moves.length} moves parsed & saved`;
-      if (result.warning) {
-        msg += ` (Warning: ${result.warning})`;
+        let msg = `Game loaded: ${result.moves.length} moves parsed & saved`;
+        if (result.warning) {
+          msg += ` (Warning: ${result.warning})`;
+        }
+        if (!cloudSaved) {
+          // Notify the user that only local save succeeded
+          showToast('Game saved locally; cloud sync failed', 'error');
+        }
+        showToast(msg);
+      } catch (e) {
+        console.error('Save failed:', e);
+        setGameData(game);
+        showToast('Game loaded but save failed', 'error');
       }
-      showToast(msg);
-    } catch (e) {
-      console.error('Save failed:', e);
-      setGameData(game);
-      showToast('Game loaded but save failed', 'error');
-    }
 
     setUploadOpen(false);
     setCurrentView('analysis');
@@ -215,7 +219,10 @@ function HomeContent() {
               whiteAccuracy: accuracy.white,
               blackAccuracy: accuracy.black,
             };
-            await saveGame(updated, user.uid);
+            const { cloudSaved: partialCloudSaved } = await saveGame(updated, user.uid);
+            // We don't surface partial save failures to the user to avoid noise
+            // but could log if needed.
+
           } catch {
             // Silent fail for auto-save
           }
