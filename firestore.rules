@@ -2,6 +2,14 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
     
+    // Validate game ID format (alphanumeric, underscores, hyphens only)
+    function isValidGameId(id) {
+      return id is string 
+        && id.size() >= 3 
+        && id.size() <= 100
+        && id.matches('^[a-zA-Z0-9_-]+$');
+    }
+    
     // Validate game data structure and field sizes
     function isValidGame(data) {
       let requiredKeys = ['id', 'userId', 'whiteName', 'blackName', 'moves', 'fens', 'savedAt'];
@@ -15,7 +23,7 @@ service cloud.firestore {
       // Validate field types and sizes
       let validMoves = data.moves is list && data.moves.size() <= 500;
       let validFens = data.fens is list && data.fens.size() <= 501;
-      let validId = data.id is string && data.id.size() <= 100;
+      let validId = isValidGameId(data.id);
       let validUserId = data.userId is string && data.userId.size() <= 128;
       let validWhiteName = data.whiteName is string && data.whiteName.size() <= 100;
       let validBlackName = data.blackName is string && data.blackName.size() <= 100;
@@ -40,24 +48,29 @@ service cloud.firestore {
 
     // User's private game library
     match /users/{userId}/games/{gameId} {
-      allow read: if isOwner(userId);
+      // Validate gameId path parameter
+      let validPath = isValidGameId(gameId);
       
-      allow create: if isOwner(userId) 
+      allow read: if validPath && isOwner(userId);
+      
+      allow create: if validPath && isOwner(userId) 
         && isValidGame(request.resource.data)
         && request.resource.data.userId == userId;
       
-      allow update, delete: if isOwner(userId);
+      allow update, delete: if validPath && isOwner(userId);
     }
 
     // Shared games — anyone can read, only owner can write
     match /sharedGames/{gameId} {
-      allow read: if true;
+      let validPath = isValidGameId(gameId);
       
-      allow create: if request.auth != null 
+      allow read: if validPath;
+      
+      allow create: if validPath && request.auth != null 
         && isValidGame(request.resource.data)
         && request.resource.data.userId == request.auth.uid;
       
-      allow update, delete: if request.auth != null 
+      allow update, delete: if validPath && request.auth != null 
         && request.auth.uid == resource.data.userId;
     }
   }

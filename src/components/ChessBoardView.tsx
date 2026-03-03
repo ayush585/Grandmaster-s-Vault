@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useRef } from 'react';
 import { Chessboard } from 'react-chessboard';
 import EvalBar from './EvalBar';
 import type { MoveAnalysis } from '@/types';
@@ -55,6 +55,21 @@ export default function ChessBoardView({
   const [flipped, setFlipped] = useState(false);
   const [selectedDepth, setSelectedDepth] = useState<AnalysisDepth>(16);
   const [shareUrl, setShareUrl] = useState<string | null>(null);
+  const touchStartX = useRef<number | null>(null);
+  const handleTouchStart = (e: React.TouchEvent) => {
+    touchStartX.current = e.touches[0].clientX;
+  };
+  const handleTouchEnd = (e: React.TouchEvent) => {
+    if (touchStartX.current !== null) {
+      const delta = e.changedTouches[0].clientX - touchStartX.current;
+      if (Math.abs(delta) > 50) {
+        if (delta > 0) onNavigate(Math.max(0, currentMove - 1));
+        else onNavigate(Math.min(totalMoves, currentMove + 1));
+      }
+    }
+    touchStartX.current = null;
+  };
+
   const [sharing, setSharing] = useState(false);
 
   const customSquareStyles = useCallback(() => {
@@ -92,11 +107,13 @@ export default function ChessBoardView({
       className="p-7 pr-6 flex flex-col gap-4 items-center bg-bg-primary border-r border-border focus:outline-none"
       tabIndex={0}
       onKeyDown={handleKeyDown}
+      onTouchStart={handleTouchStart}
+      onTouchEnd={handleTouchEnd}
     >
       {/* Board + Eval Bar */}
       <div className="flex gap-2 items-stretch">
         <EvalBar evaluation={evaluation} mate={mate} />
-        <div style={{ width: 512, height: 512 }}>
+        <div className="w-full max-w-[512px] aspect-square">
           <Chessboard
             options={{
               id: 'analysis-board',
@@ -117,7 +134,7 @@ export default function ChessBoardView({
       </div>
 
       {/* Controls */}
-      <div className="flex items-center justify-between w-[512px] ml-9">
+      <div className="flex flex-col sm:flex-row items-center justify-between w-full max-w-[512px] mx-auto mt-4">
         <div className="flex gap-1">
           {[
             { label: '⏮', title: 'First move', action: () => onNavigate(0) },
@@ -190,7 +207,7 @@ export default function ChessBoardView({
 
       {/* Export / Print / Share buttons (after analysis) */}
       {hasAnalysis && (
-        <div className="flex gap-2 w-[548px] no-print relative">
+        <div className="flex gap-2 w-full max-w-[548px] mx-auto no-print relative">
           {onExportPGN && (
             <button
               onClick={onExportPGN}
@@ -275,7 +292,7 @@ export default function ChessBoardView({
       )}
 
       {/* Game Info */}
-      <div className="w-[548px] p-4 bg-bg-secondary border border-border rounded-lg min-h-[48px]">
+      <div className="w-full max-w-[548px] mx-auto p-4 bg-bg-secondary border border-border rounded-lg min-h-[48px]">
         {gameLoaded ? (
           <div className="grid grid-cols-2 gap-x-5 gap-y-2">
             {whiteName && (

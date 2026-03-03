@@ -108,15 +108,22 @@ export function generateAnnotatedPGN(game: GameData): string {
   return lines.join('\n') + '\n';
 }
 
+function sanitizeFilename(str: string): string {
+  return str
+    .replace(/[\/\\:*?"<>|]/g, '_')
+    .replace(/\s+/g, '_')
+    .slice(0, 100);
+}
+
 export function downloadPGN(game: GameData): void {
   const pgn = generateAnnotatedPGN(game);
   const blob = new Blob([pgn], { type: 'application/x-chess-pgn' });
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
 
-  const white = (game.whiteName || 'White').replace(/\s+/g, '_');
-  const black = (game.blackName || 'Black').replace(/\s+/g, '_');
-  const dateStr = game.date || 'undated';
+  const white = sanitizeFilename(game.whiteName || 'White');
+  const black = sanitizeFilename(game.blackName || 'Black');
+  const dateStr = (game.date || 'undated').replace(/-/g, '');
   a.download = `${white}_vs_${black}_${dateStr}.pgn`;
   a.href = url;
   document.body.appendChild(a);

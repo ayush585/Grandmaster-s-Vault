@@ -6,7 +6,9 @@ const SHARED_COLLECTION = 'sharedGames';
 
 const SHARE_RATE_LIMIT_WINDOW = 60000; // 1 minute
 const MAX_SHARES_PER_WINDOW = 10;
+const MAX_READS_PER_WINDOW = 60;
 const shareTimestamps: Map<string, number[]> = new Map();
+const readTimestamps: Map<string, number[]> = new Map();
 
 function checkShareRateLimit(userId: string): boolean {
   const now = Date.now();
@@ -20,6 +22,22 @@ function checkShareRateLimit(userId: string): boolean {
   
   recent.push(now);
   shareTimestamps.set(userId, recent);
+  return true;
+}
+
+function checkReadRateLimit(): boolean {
+  const now = Date.now();
+  const clientKey = typeof navigator !== 'undefined' ? navigator.userAgent : 'anonymous';
+  const timestamps = readTimestamps.get(clientKey) || [];
+  const recent = timestamps.filter(t => now - t < SHARE_RATE_LIMIT_WINDOW);
+  
+  if (recent.length >= MAX_READS_PER_WINDOW) {
+    console.warn('[Sharing] Read rate limit exceeded for client');
+    return false;
+  }
+  
+  recent.push(now);
+  readTimestamps.set(clientKey, recent);
   return true;
 }
 
@@ -48,6 +66,11 @@ export async function shareGame(game: GameData, userId: string): Promise<string>
 }
 
 export async function getSharedGame(id: string): Promise<GameData | null> {
+  if (!checkReadRateLimit()) {
+    console.warn('[Sharing] Read rate limit exceeded');
+    return null;
+  }
+
   const db = getDb();
   if (!db) return null;
 

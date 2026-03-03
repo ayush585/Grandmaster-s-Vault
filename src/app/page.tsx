@@ -354,7 +354,7 @@ function HomeContent() {
           </div>
         </main>
       ) : currentView === 'analysis' ? (
-        <main className="flex-1 grid grid-cols-[auto_1fr] min-h-[calc(100vh-60px)]">
+        <main className="flex-1 grid grid-cols-1 lg:grid-cols-[auto_1fr] min-h-[calc(100vh-60px)]">
           {/* Left: Board */}
           <ChessBoardView
             fen={currentFen}

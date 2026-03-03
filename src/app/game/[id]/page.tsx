@@ -12,6 +12,17 @@ import EvalChart from '@/components/EvalChart';
 
 const START_FEN = 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1';
 
+function isValidFen(fen: string): boolean {
+  if (!fen || typeof fen !== 'string') return false;
+  const parts = fen.trim().split(/\s+/);
+  if (parts.length !== 6) return false;
+  const [position, turn, castling, , ,] = parts;
+  if (!/^[kKqQrRbBnNpP1-8\/]+$/.test(position)) return false;
+  if (!/^[wb]$/.test(turn)) return false;
+  if (!/^-|[KQkq]+/.test(castling)) return false;
+  return true;
+}
+
 export default function SharedGamePage() {
   const params = useParams();
   const id = params.id as string;
