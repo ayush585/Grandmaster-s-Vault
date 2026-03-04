@@ -54,7 +54,7 @@ if (typeof window !== 'undefined') {
 }
 
 // IndexedDB helpers
-const IDB_VERSION = 3; // bump version for future migrations
+const IDB_VERSION = 4; // v4: added scouting stores
 
 // IndexedDB helpers
 function openIDB(): Promise<IDBDatabase> {
@@ -89,6 +89,21 @@ function openIDB(): Promise<IDBDatabase> {
         const store = tx.objectStore(IDB_STORE);
         if (!store.indexNames.contains('date')) {
           store.createIndex('date', 'date', { unique: false });
+        }
+      }
+
+      // Version 4 – add scouting stores (fetched_games_cache, scouting_reports)
+      if (oldVersion < 4) {
+        if (!db.objectStoreNames.contains('fetched_games_cache')) {
+          const cacheStore = db.createObjectStore('fetched_games_cache', { keyPath: 'id' });
+          cacheStore.createIndex('platform', 'platform', { unique: false });
+          cacheStore.createIndex('username', 'username', { unique: false });
+          cacheStore.createIndex('fetchedAt', 'fetchedAt', { unique: false });
+        }
+        if (!db.objectStoreNames.contains('scouting_reports')) {
+          const reportStore = db.createObjectStore('scouting_reports', { keyPath: 'id' });
+          reportStore.createIndex('platform', 'platform', { unique: false });
+          reportStore.createIndex('username', 'username', { unique: false });
         }
       }
     };

@@ -85,3 +85,5 @@ export const CLASSIFICATION_SYMBOLS: Record<MoveClassification, string> = {
   mistake: '?',
   blunder: '??',
 };
+
+export * from './scouting';

@@ -12,7 +12,16 @@
       "Bash(npx next dev:*)",
       "Bash(curl:*)",
       "Bash(npm run build:*)",
-      "Bash(ls:*)"
+      "Bash(ls:*)",
+      "Bash(git add:*)",
+      "Bash(git commit:*)",
+      "Bash(git push:*)",
+      "WebFetch(domain:www.chess.com)",
+      "WebFetch(domain:lichess.org)",
+      "WebSearch",
+      "WebFetch(domain:support.chess.com)",
+      "WebFetch(domain:github.com)",
+      "WebFetch(domain:publicapi.dev)"
     ]
   }
 }

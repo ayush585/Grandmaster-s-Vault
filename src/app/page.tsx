@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useCallback, useRef, useEffect } from 'react';
+import { useRouter } from 'next/navigation';
 import ErrorBoundary from '@/components/ErrorBoundary';
 import Header from '@/components/Header';
 import ChessBoardView from '@/components/ChessBoardView';
@@ -29,6 +30,7 @@ import type { GameData, MoveAnalysis } from '@/types';
 const START_FEN = 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1';
 
 function HomeContent() {
+  const router = useRouter();
   const { user, loading: authLoading } = useAuth();
 
   // View state
@@ -63,9 +65,33 @@ function HomeContent() {
   const [libraryRefresh, setLibraryRefresh] = useState(0);
   const [mobileDrawerOpen, setMobileDrawerOpen] = useState(false);
 
+  useEffect(() => {
+    const syncViewFromUrl = () => {
+      const params = new URLSearchParams(window.location.search);
+      const viewParam = params.get('view');
+      if (viewParam === 'library') {
+        setCurrentView('library');
+      } else if (viewParam === 'analysis') {
+        setCurrentView('analysis');
+      }
+    };
+
+    syncViewFromUrl();
+    window.addEventListener('popstate', syncViewFromUrl);
+    return () => window.removeEventListener('popstate', syncViewFromUrl);
+  }, []);
+
   const showToast = useCallback((message: string, type: 'success' | 'error' = 'success') => {
     setToast({ message, type, visible: true });
   }, []);
+
+  const handleViewChange = useCallback((view: 'analysis' | 'library' | 'scout') => {
+    if (view === 'scout') {
+      router.push('/scout');
+      return;
+    }
+    setCurrentView(view);
+  }, [router]);
 
   // Current position info
   const currentFen = fens[currentMove] || START_FEN;
@@ -333,7 +359,7 @@ function HomeContent() {
     <div className="min-h-screen flex flex-col">
       <Header
         currentView={currentView}
-        onViewChange={setCurrentView}
+        onViewChange={handleViewChange}
         onUploadClick={() => setUploadOpen(true)}
         user={user}
         onSignInClick={() => setAuthOpen(true)}
