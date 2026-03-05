@@ -11,6 +11,13 @@ export interface ScoutWarningSummary {
   message: string;
 }
 
+export type SelfAnalysisSide = 'both' | 'white' | 'black';
+
+export interface SelfAnalysisOptions {
+  playerName: string;
+  side: SelfAnalysisSide;
+}
+
 export interface FetchedGame {
   id: string;
   platform: ChessPlatform;
@@ -94,6 +101,16 @@ export interface LichessPuzzle {
   url: string;
 }
 
+export type PuzzleFetchErrorCode = 'THEME_UNAVAILABLE' | 'NETWORK_ERROR' | 'CANCELLED';
+
+export interface PuzzleIndexSchema {
+  version: number;
+  generatedAt: string;
+  source: string;
+  targetPerTheme: number;
+  themes: Record<string, string[]>;
+}
+
 export type PuzzleResult = 'solved' | 'failed' | 'skipped';
 
 export interface PuzzleAttempt {
@@ -123,6 +140,7 @@ export interface ScoutState {
   selfReport: WeaknessReport | null;
   opponentWarning: ScoutWarningSummary | null;
   selfWarning: ScoutWarningSummary | null;
+  preferredPuzzleThemes: string[];
   puzzleSession: PuzzleSession | null;
 }
 

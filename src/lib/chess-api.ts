@@ -3,33 +3,66 @@ import type { FetchedGame } from '@/types';
 
 const START_FEN = 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1';
 
-async function sleep(ms: number) {
-  return new Promise((r) => setTimeout(r, ms));
+function abortError(): DOMException {
+  return new DOMException('The operation was aborted.', 'AbortError');
+}
+
+async function sleep(ms: number, abortSignal?: AbortSignal) {
+  if (!abortSignal) {
+    return new Promise((r) => setTimeout(r, ms));
+  }
+
+  if (abortSignal.aborted) {
+    throw abortError();
+  }
+
+  return new Promise<void>((resolve, reject) => {
+    const onAbort = () => {
+      clearTimeout(timeout);
+      abortSignal.removeEventListener('abort', onAbort);
+      reject(abortError());
+    };
+
+    const timeout = setTimeout(() => {
+      abortSignal.removeEventListener('abort', onAbort);
+      resolve();
+    }, ms);
+
+    abortSignal.addEventListener('abort', onAbort, { once: true });
+  });
 }
 
 async function rateLimitedFetch(
   url: string,
   delayMs: number,
+  abortSignal?: AbortSignal,
   opts?: RequestInit,
   maxRetries = 3
 ): Promise<Response> {
   for (let attempt = 0; attempt < maxRetries; attempt++) {
-    if (attempt > 0) {
-      await sleep(delayMs * Math.pow(2, attempt));
-    } else if (attempt === 0 && delayMs > 0) {
-      await sleep(delayMs);
+    if (abortSignal?.aborted) {
+      throw abortError();
     }
 
-    const res = await fetch(url, opts);
+    if (attempt > 0 && delayMs > 0) {
+      await sleep(delayMs * Math.pow(2, attempt), abortSignal);
+    } else if (attempt === 0 && delayMs > 0) {
+      await sleep(delayMs, abortSignal);
+    }
+
+    const res = await fetch(url, { ...opts, signal: abortSignal });
     if (res.status === 429) {
       console.warn(`[chess-api] 429 rate limited, backing off (attempt ${attempt + 1})`);
-      await sleep(60_000);
+      await sleep(60_000, abortSignal);
       continue;
     }
     if (!res.ok) {
       throw new Error(`HTTP ${res.status}: ${res.statusText} for ${url}`);
     }
     return res;
+  }
+  if (abortSignal?.aborted) {
+    throw abortError();
   }
   throw new Error(`Rate limited after ${maxRetries} retries for ${url}`);
 }
@@ -85,7 +118,7 @@ function chesscomResultToStandard(white: { result: string }, black: { result: st
 export async function fetchChesscomGames(
   username: string,
   maxGames: number,
-  signal?: { cancelled: boolean },
+  abortSignal?: AbortSignal,
   onProgress?: (msg: string) => void
 ): Promise<FetchedGame[]> {
   onProgress?.(`Fetching archives for ${username}...`);
@@ -93,6 +126,7 @@ export async function fetchChesscomGames(
   const archivesRes = await rateLimitedFetch(
     `https://api.chess.com/pub/player/${encodeURIComponent(username.toLowerCase())}/games/archives`,
     0,
+    abortSignal,
     { headers: { 'User-Agent': 'GrandmastersVault/1.0' } }
   );
   const { archives } = (await archivesRes.json()) as { archives: string[] };
@@ -105,12 +139,12 @@ export async function fetchChesscomGames(
   const sortedArchives = [...archives].reverse();
 
   for (const archiveUrl of sortedArchives) {
-    if (signal?.cancelled) break;
+    if (abortSignal?.aborted) break;
     if (games.length >= maxGames) break;
 
     onProgress?.(`Fetching games (${games.length}/${maxGames})...`);
 
-    const res = await rateLimitedFetch(archiveUrl, 1000, {
+    const res = await rateLimitedFetch(archiveUrl, 1000, abortSignal, {
       headers: { 'User-Agent': 'GrandmastersVault/1.0' },
     });
     const { games: monthGames } = (await res.json()) as { games: ChessComGame[] };
@@ -169,14 +203,14 @@ function lichessTimeControl(game: LichessGame): string {
 export async function fetchLichessGames(
   username: string,
   maxGames: number,
-  signal?: { cancelled: boolean },
+  abortSignal?: AbortSignal,
   onProgress?: (msg: string) => void
 ): Promise<FetchedGame[]> {
   onProgress?.(`Fetching games for ${username} from Lichess...`);
 
   const url = `https://lichess.org/api/games/user/${encodeURIComponent(username)}?max=${maxGames}&moves=true&pgnInBody=true`;
 
-  const res = await rateLimitedFetch(url, 0, {
+  const res = await rateLimitedFetch(url, 0, abortSignal, {
     headers: {
       Accept: 'application/x-ndjson',
     },
@@ -187,7 +221,7 @@ export async function fetchLichessGames(
   const games: FetchedGame[] = [];
 
   for (const line of lines) {
-    if (signal?.cancelled) break;
+    if (abortSignal?.aborted) break;
 
     try {
       const g = JSON.parse(line) as LichessGame;
@@ -225,11 +259,11 @@ export async function fetchGames(
   platform: 'chesscom' | 'lichess',
   username: string,
   maxGames: number,
-  signal?: { cancelled: boolean },
+  abortSignal?: AbortSignal,
   onProgress?: (msg: string) => void
 ): Promise<FetchedGame[]> {
   if (platform === 'chesscom') {
-    return fetchChesscomGames(username, maxGames, signal, onProgress);
+    return fetchChesscomGames(username, maxGames, abortSignal, onProgress);
   }
-  return fetchLichessGames(username, maxGames, signal, onProgress);
+  return fetchLichessGames(username, maxGames, abortSignal, onProgress);
 }

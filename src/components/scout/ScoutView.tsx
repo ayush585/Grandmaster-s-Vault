@@ -94,7 +94,8 @@ export default function ScoutView() {
               <WeaknessReportView
                 report={state.opponentReport}
                 onBack={() => dispatch({ type: 'SET_OPPONENT_REPORT', report: null })}
-                onPractice={(_themes: string[]) => {
+                onPractice={(themes: string[]) => {
+                  dispatch({ type: 'SET_PREFERRED_PUZZLE_THEMES', themes });
                   dispatch({ type: 'SET_TAB', tab: 'puzzles' });
                 }}
               />
@@ -110,7 +111,8 @@ export default function ScoutView() {
               <WeaknessReportView
                 report={state.selfReport}
                 onBack={() => dispatch({ type: 'SET_SELF_REPORT', report: null })}
-                onPractice={(_themes: string[]) => {
+                onPractice={(themes: string[]) => {
+                  dispatch({ type: 'SET_PREFERRED_PUZZLE_THEMES', themes });
                   dispatch({ type: 'SET_TAB', tab: 'puzzles' });
                 }}
               />

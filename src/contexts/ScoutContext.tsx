@@ -23,6 +23,7 @@ export type ScoutAction =
   | { type: 'SET_SELF_REPORT'; report: WeaknessReport | null }
   | { type: 'SET_OPPONENT_WARNING'; warning: ScoutWarningSummary | null }
   | { type: 'SET_SELF_WARNING'; warning: ScoutWarningSummary | null }
+  | { type: 'SET_PREFERRED_PUZZLE_THEMES'; themes: string[] }
   | { type: 'SET_PUZZLE_SESSION'; session: PuzzleSession | null }
   | { type: 'ADD_PUZZLE_ATTEMPT'; attempt: PuzzleAttempt }
   | { type: 'NEXT_PUZZLE' }
@@ -38,6 +39,7 @@ export const initialScoutState: ScoutState = {
   selfReport: null,
   opponentWarning: null,
   selfWarning: null,
+  preferredPuzzleThemes: [],
   puzzleSession: null,
 };
 
@@ -66,6 +68,8 @@ export function scoutReducer(state: ScoutState, action: ScoutAction): ScoutState
       return { ...state, opponentWarning: action.warning };
     case 'SET_SELF_WARNING':
       return { ...state, selfWarning: action.warning };
+    case 'SET_PREFERRED_PUZZLE_THEMES':
+      return { ...state, preferredPuzzleThemes: action.themes };
     case 'SET_PUZZLE_SESSION':
       return { ...state, puzzleSession: action.session };
     case 'ADD_PUZZLE_ATTEMPT': {

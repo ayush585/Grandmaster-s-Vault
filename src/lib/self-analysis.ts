@@ -1,11 +1,12 @@
-import type { GameData, FetchedGame } from '@/types';
+import type { GameData, FetchedGame, SelfAnalysisOptions } from '@/types';
 
 export interface PreparedSelfAnalysis {
   games: FetchedGame[];
   selectedCount: number;
   reusedCount: number;
   toAnalyzeCount: number;
-  inferredPlayerName: string;
+  defaultPlayerName: string;
+  playerOptions: string[];
 }
 
 function normalizeName(value: string): string {
@@ -37,60 +38,77 @@ export function selectRecentGames(games: GameData[], maxGames: number): GameData
     .slice(0, Math.max(0, maxGames));
 }
 
-export function inferSelfPlayerName(games: FetchedGame[], preferredNames: string[]): string {
+export function getPlayerNameOptions(games: FetchedGame[]): string[] {
   const counts = new Map<string, number>();
 
-  const addName = (name: string) => {
+  const add = (name: string) => {
     const trimmed = name.trim();
     if (!trimmed) return;
     counts.set(trimmed, (counts.get(trimmed) || 0) + 1);
   };
 
   games.forEach((g) => {
-    addName(g.white);
-    addName(g.black);
+    add(g.white);
+    add(g.black);
   });
 
-  const preferred = preferredNames
-    .map((n) => n.trim())
-    .filter(Boolean)
-    .map((n) => ({ raw: n, key: normalizeName(n) }));
+  return [...counts.entries()]
+    .sort((a, b) => b[1] - a[1])
+    .map(([name]) => name);
+}
 
-  if (preferred.length > 0 && counts.size > 0) {
-    const candidates = [...counts.entries()].map(([name, count]) => ({
-      name,
-      key: normalizeName(name),
-      count,
-    }));
-
-    const preferredMatches = candidates
-      .filter((c) => preferred.some((p) => p.key === c.key))
-      .sort((a, b) => b.count - a.count);
-
-    if (preferredMatches.length > 0) {
-      return preferredMatches[0].name;
-    }
+export function inferDefaultSelfPlayerName(games: FetchedGame[], preferredNames: string[]): string {
+  const options = getPlayerNameOptions(games);
+  if (options.length === 0) {
+    return preferredNames[0] || 'You';
   }
 
-  const top = [...counts.entries()].sort((a, b) => b[1] - a[1])[0];
-  return top?.[0] || preferredNames[0] || 'You';
+  const preferredKeys = new Set(
+    preferredNames
+      .map((n) => n.trim())
+      .filter(Boolean)
+      .map((n) => normalizeName(n))
+  );
+
+  const preferredHit = options.find((name) => preferredKeys.has(normalizeName(name)));
+  if (preferredHit) return preferredHit;
+
+  return options[0];
+}
+
+function matchesSide(game: FetchedGame, normalizedPlayerName: string, side: SelfAnalysisOptions['side']): boolean {
+  const whiteMatch = normalizeName(game.white) === normalizedPlayerName;
+  const blackMatch = normalizeName(game.black) === normalizedPlayerName;
+
+  if (side === 'white') return whiteMatch;
+  if (side === 'black') return blackMatch;
+  return whiteMatch || blackMatch;
 }
 
 export function prepareSelfAnalysisGames(
   games: GameData[],
   maxGames: number,
-  preferredNames: string[] = []
+  preferredNames: string[] = [],
+  options?: SelfAnalysisOptions
 ): PreparedSelfAnalysis {
   const selected = selectRecentGames(games, maxGames);
   const mapped = selected.map(mapGameToFetchedGame).filter((g) => g.moves.length > 0 && g.fens.length > 1);
-  const reusedCount = mapped.filter((g) => !!(g.analysis && g.analysis.length > 0)).length;
-  const inferredPlayerName = inferSelfPlayerName(mapped, preferredNames);
+  const defaultPlayerName = inferDefaultSelfPlayerName(mapped, preferredNames);
+  const playerOptions = getPlayerNameOptions(mapped);
+
+  const playerName = options?.playerName?.trim() || defaultPlayerName;
+  const normalizedPlayerName = normalizeName(playerName);
+  const side = options?.side || 'both';
+
+  const filtered = mapped.filter((g) => matchesSide(g, normalizedPlayerName, side));
+  const reusedCount = filtered.filter((g) => !!(g.analysis && g.analysis.length > 0)).length;
 
   return {
-    games: mapped,
-    selectedCount: mapped.length,
+    games: filtered,
+    selectedCount: filtered.length,
     reusedCount,
-    toAnalyzeCount: Math.max(0, mapped.length - reusedCount),
-    inferredPlayerName,
+    toAnalyzeCount: Math.max(0, filtered.length - reusedCount),
+    defaultPlayerName,
+    playerOptions,
   };
 }

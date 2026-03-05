@@ -43,7 +43,7 @@ export default function WeaknessReportView({ report, onBack, onPractice }: Weakn
           <div className="mt-3 px-3 py-2 rounded border border-[rgba(232,198,58,0.35)] bg-[rgba(232,198,58,0.1)] text-[0.78rem] text-inaccuracy">
             {report.warningSummary.message}
             <span className="text-text-secondary ml-2">
-              ({report.warningSummary.analyzed}/{report.warningSummary.fetched} analyzed)
+              (fetched={report.warningSummary.fetched}, analyzed={report.warningSummary.analyzed}, skipped={report.warningSummary.skipped}, reused={report.warningSummary.reused})
             </span>
           </div>
         )}

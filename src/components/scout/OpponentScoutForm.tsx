@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useRef, useCallback } from 'react';
+import { useState, useRef, useCallback, useEffect } from 'react';
 import { useScout } from '@/contexts/ScoutContext';
 import type { ScoutWarningSummary } from '@/types';
 import { fetchGames } from '@/lib/chess-api';
@@ -20,8 +20,8 @@ function buildWarningSummary(
   if (!cancelled && skipped <= 0) return null;
 
   const message = cancelled
-    ? `Run cancelled. Analyzed ${analyzed}/${fetched} games so far.`
-    : `Partial analysis complete: ${analyzed}/${fetched} games analyzed, ${skipped} skipped.`;
+    ? `Run cancelled. fetched=${fetched}, analyzed=${analyzed}, skipped=${skipped}, reused=${reused}.`
+    : `Partial analysis complete: fetched=${fetched}, analyzed=${analyzed}, skipped=${skipped}, reused=${reused}.`;
 
   return {
     fetched,
@@ -39,6 +39,13 @@ export default function OpponentScoutForm() {
   const [gameCount, setGameCount] = useState<number>(10);
   const [error, setError] = useState('');
   const cancelRef = useRef({ cancelled: false });
+  const abortRef = useRef<AbortController | null>(null);
+
+  const isAbortError = (err: unknown): boolean => {
+    return err instanceof DOMException
+      ? err.name === 'AbortError'
+      : !!(err && typeof err === 'object' && 'name' in err && (err as { name?: string }).name === 'AbortError');
+  };
 
   const handleScout = useCallback(async () => {
     if (!username.trim()) {
@@ -48,8 +55,11 @@ export default function OpponentScoutForm() {
 
     setError('');
     cancelRef.current = { cancelled: false };
+    abortRef.current?.abort();
+    abortRef.current = new AbortController();
     dispatch({ type: 'SET_FETCHING', isFetching: true });
     dispatch({ type: 'SET_OPPONENT_WARNING', warning: null });
+    dispatch({ type: 'SET_PREFERRED_PUZZLE_THEMES', themes: [] });
     dispatch({ type: 'SET_BATCH_PROGRESS', progress: {
       currentGame: 0,
       totalGames: 0,
@@ -62,7 +72,7 @@ export default function OpponentScoutForm() {
       let games = await getCachedGames(platform, username);
 
       if (!games || games.length === 0) {
-        games = await fetchGames(platform, username, gameCount, cancelRef.current, (msg) => {
+        games = await fetchGames(platform, username, gameCount, abortRef.current.signal, (msg) => {
           dispatch({
             type: 'SET_BATCH_PROGRESS',
             progress: {
@@ -123,9 +133,22 @@ export default function OpponentScoutForm() {
       dispatch({ type: 'SET_FETCHED_GAMES', games: analyzedGames });
       dispatch({ type: 'SET_OPPONENT_REPORT', report });
       dispatch({ type: 'SET_OPPONENT_WARNING', warning });
+      dispatch({ type: 'SET_PREFERRED_PUZZLE_THEMES', themes: report.suggestedPuzzleThemes || [] });
       dispatch({ type: 'SET_ANALYZING_BATCH', isAnalyzing: false });
       dispatch({ type: 'SET_BATCH_PROGRESS', progress: null });
     } catch (e) {
+      if (cancelRef.current.cancelled || isAbortError(e)) {
+        const warning = buildWarningSummary(0, 0, 0, true);
+        dispatch({ type: 'SET_OPPONENT_WARNING', warning });
+        dispatch({ type: 'SET_FETCHING', isFetching: false });
+        dispatch({ type: 'SET_ANALYZING_BATCH', isAnalyzing: false });
+        dispatch({
+          type: 'SET_BATCH_PROGRESS',
+          progress: { currentGame: 0, totalGames: 0, currentGameMoveProgress: 0, phase: 'cancelled', message: 'Cancelled' },
+        });
+        return;
+      }
+
       console.error('[OpponentScout] Error:', e);
       setError(e instanceof Error ? e.message : 'Failed to scout opponent');
       dispatch({ type: 'SET_FETCHING', isFetching: false });
@@ -145,6 +168,8 @@ export default function OpponentScoutForm() {
 
   const handleCancel = useCallback(() => {
     cancelRef.current.cancelled = true;
+    abortRef.current?.abort();
+    dispatch({ type: 'SET_OPPONENT_WARNING', warning: buildWarningSummary(0, 0, 0, true) });
     dispatch({ type: 'SET_FETCHING', isFetching: false });
     dispatch({ type: 'SET_ANALYZING_BATCH', isAnalyzing: false });
     dispatch({
@@ -154,6 +179,12 @@ export default function OpponentScoutForm() {
   }, [dispatch]);
 
   const isRunning = state.isFetching || state.isAnalyzingBatch;
+
+  useEffect(() => {
+    return () => {
+      abortRef.current?.abort();
+    };
+  }, []);
 
   return (
     <div className="bg-bg-primary border border-border rounded-lg p-6">

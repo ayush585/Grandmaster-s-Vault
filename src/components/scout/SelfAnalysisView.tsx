@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useScout } from '@/contexts/ScoutContext';
 import { useAuth } from '@/hooks/useAuth';
-import type { ScoutWarningSummary } from '@/types';
+import type { ScoutWarningSummary, SelfAnalysisSide } from '@/types';
 import { getAllGames } from '@/lib/storage';
 import { batchAnalyzeGames } from '@/lib/batch-analyzer';
 import { generateWeaknessReport } from '@/lib/weakness-analyzer';
@@ -27,8 +27,8 @@ function buildWarningSummary(
     skipped,
     reused,
     message: cancelled
-      ? `Run cancelled. Analyzed ${analyzed}/${fetched} games so far.`
-      : `Partial analysis complete: ${analyzed}/${fetched} games analyzed, ${skipped} skipped.`,
+      ? `Run cancelled. fetched=${fetched}, analyzed=${analyzed}, skipped=${skipped}, reused=${reused}.`
+      : `Partial analysis complete: fetched=${fetched}, analyzed=${analyzed}, skipped=${skipped}, reused=${reused}.`,
   };
 }
 
@@ -43,7 +43,35 @@ export default function SelfAnalysisView() {
   const [gameCount, setGameCount] = useState<number>(25);
   const [error, setError] = useState('');
   const [loadingCached, setLoadingCached] = useState(false);
+  const [loadingIdentity, setLoadingIdentity] = useState(false);
+  const [playerOptions, setPlayerOptions] = useState<string[]>([]);
+  const [selectedPlayerName, setSelectedPlayerName] = useState('');
+  const [side, setSide] = useState<SelfAnalysisSide>('both');
   const cancelRef = useRef({ cancelled: false });
+
+  const loadIdentityCandidates = useCallback(async () => {
+    if (!user) return;
+
+    setLoadingIdentity(true);
+    try {
+      const allGames = await getAllGames(user.uid);
+      const preferredNames = [user.displayName || '', emailAlias(user.email)].filter(Boolean);
+      const prepared = prepareSelfAnalysisGames(allGames, gameCount, preferredNames);
+      setPlayerOptions(prepared.playerOptions);
+
+      if (!selectedPlayerName && prepared.defaultPlayerName) {
+        setSelectedPlayerName(prepared.defaultPlayerName);
+      }
+    } catch {
+      // best effort only
+    } finally {
+      setLoadingIdentity(false);
+    }
+  }, [gameCount, selectedPlayerName, user]);
+
+  useEffect(() => {
+    loadIdentityCandidates();
+  }, [loadIdentityCandidates]);
 
   useEffect(() => {
     const loadCached = async () => {
@@ -54,6 +82,7 @@ export default function SelfAnalysisView() {
         if (cached) {
           dispatch({ type: 'SET_SELF_REPORT', report: cached });
           dispatch({ type: 'SET_SELF_WARNING', warning: cached.warningSummary || null });
+          dispatch({ type: 'SET_PREFERRED_PUZZLE_THEMES', themes: cached.suggestedPuzzleThemes || [] });
         }
       } catch {
         // ignore cache load failures
@@ -71,10 +100,16 @@ export default function SelfAnalysisView() {
       return;
     }
 
+    if (!selectedPlayerName.trim()) {
+      setError('Select your player name before running self-analysis.');
+      return;
+    }
+
     setError('');
     cancelRef.current = { cancelled: false };
     dispatch({ type: 'SET_FETCHING', isFetching: true });
     dispatch({ type: 'SET_SELF_WARNING', warning: null });
+    dispatch({ type: 'SET_PREFERRED_PUZZLE_THEMES', themes: [] });
     dispatch({
       type: 'SET_BATCH_PROGRESS',
       progress: {
@@ -89,10 +124,13 @@ export default function SelfAnalysisView() {
     try {
       const allGames = await getAllGames(user.uid);
       const preferredNames = [user.displayName || '', emailAlias(user.email)].filter(Boolean);
-      const prepared = prepareSelfAnalysisGames(allGames, gameCount, preferredNames);
+      const prepared = prepareSelfAnalysisGames(allGames, gameCount, preferredNames, {
+        playerName: selectedPlayerName,
+        side,
+      });
 
       if (prepared.games.length === 0) {
-        setError('No suitable games found. Upload and save a few games first.');
+        setError('No games match the selected player name/side. Try another combination.');
         dispatch({ type: 'SET_FETCHING', isFetching: false });
         dispatch({ type: 'SET_BATCH_PROGRESS', progress: null });
         return;
@@ -116,7 +154,7 @@ export default function SelfAnalysisView() {
       }
 
       const warning = buildWarningSummary(summary.fetched, summary.analyzed, summary.reused, summary.cancelled);
-      const report = generateWeaknessReport(analyzedGames, prepared.inferredPlayerName, 'vault');
+      const report = generateWeaknessReport(analyzedGames, selectedPlayerName.trim(), 'vault');
       if (warning) {
         report.warningSummary = warning;
       }
@@ -126,6 +164,7 @@ export default function SelfAnalysisView() {
       dispatch({ type: 'SET_FETCHED_GAMES', games: analyzedGames });
       dispatch({ type: 'SET_SELF_REPORT', report });
       dispatch({ type: 'SET_SELF_WARNING', warning });
+      dispatch({ type: 'SET_PREFERRED_PUZZLE_THEMES', themes: report.suggestedPuzzleThemes || [] });
       dispatch({ type: 'SET_ANALYZING_BATCH', isAnalyzing: false });
       dispatch({ type: 'SET_BATCH_PROGRESS', progress: null });
     } catch (e) {
@@ -143,10 +182,11 @@ export default function SelfAnalysisView() {
         },
       });
     }
-  }, [dispatch, gameCount, user]);
+  }, [dispatch, gameCount, selectedPlayerName, side, user]);
 
   const handleCancel = useCallback(() => {
     cancelRef.current.cancelled = true;
+    dispatch({ type: 'SET_SELF_WARNING', warning: buildWarningSummary(0, 0, 0, true) });
     dispatch({ type: 'SET_FETCHING', isFetching: false });
     dispatch({ type: 'SET_ANALYZING_BATCH', isAnalyzing: false });
     dispatch({
@@ -169,8 +209,39 @@ export default function SelfAnalysisView() {
         Analyze My Weaknesses
       </h3>
       <p className="text-text-secondary text-[0.85rem] mb-6">
-        Use your saved Grandmaster&apos;s Vault games to build a personalized weakness report.
+        Choose who you are in your saved games, then generate a deterministic self-analysis report.
       </p>
+
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-4">
+        <div>
+          <label className="block text-text-secondary text-[0.8rem] font-medium mb-2">Who am I in these games?</label>
+          <select
+            value={selectedPlayerName}
+            onChange={(e) => setSelectedPlayerName(e.target.value)}
+            disabled={isRunning || loadingIdentity || playerOptions.length === 0}
+            className="w-full px-3 py-2.5 bg-bg-secondary border border-border rounded-md text-text-primary text-[0.85rem]
+              disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            {!selectedPlayerName && <option value="">Select a player name</option>}
+            {playerOptions.map((name) => (
+              <option key={name} value={name}>{name}</option>
+            ))}
+          </select>
+        </div>
+        <div>
+          <label className="block text-text-secondary text-[0.8rem] font-medium mb-2">Side filter</label>
+          <select
+            value={side}
+            onChange={(e) => setSide(e.target.value as SelfAnalysisSide)}
+            disabled={isRunning}
+            className="w-full px-3 py-2.5 bg-bg-secondary border border-border rounded-md text-text-primary text-[0.85rem]"
+          >
+            <option value="both">Both sides</option>
+            <option value="white">Only games as White</option>
+            <option value="black">Only games as Black</option>
+          </select>
+        </div>
+      </div>
 
       <div className="mb-6">
         <label className="block text-text-secondary text-[0.8rem] font-medium mb-2">
@@ -197,6 +268,9 @@ export default function SelfAnalysisView() {
       {loadingCached && (
         <p className="mb-3 text-[0.78rem] text-text-muted">Loading cached self-report...</p>
       )}
+      {loadingIdentity && (
+        <p className="mb-3 text-[0.78rem] text-text-muted">Detecting player name options from recent games...</p>
+      )}
 
       {error && (
         <div className="mb-4 px-4 py-2.5 bg-[rgba(224,85,85,0.1)] border border-[rgba(224,85,85,0.3)] rounded-md text-blunder text-[0.85rem]">
@@ -207,7 +281,7 @@ export default function SelfAnalysisView() {
       <div className="flex gap-3">
         <button
           onClick={handleAnalyze}
-          disabled={isRunning || !user}
+          disabled={isRunning || !user || !selectedPlayerName}
           className="flex items-center gap-2 px-6 py-2.5 rounded-md text-[0.9rem] font-semibold transition-all cursor-pointer
             bg-gradient-to-br from-gold-dim to-gold text-bg-deep hover:from-gold hover:to-gold-bright hover:shadow-[0_0_20px_rgba(201,162,39,0.15)]
             disabled:opacity-40 disabled:cursor-not-allowed"

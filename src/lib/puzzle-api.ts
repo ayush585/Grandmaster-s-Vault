@@ -1,8 +1,22 @@
 import { Chess } from 'chess.js';
-import type { LichessPuzzle, PuzzleSession } from '@/types';
+import type { LichessPuzzle, PuzzleFetchErrorCode, PuzzleIndexSchema, PuzzleSession } from '@/types';
 import puzzleIdsData from '@/data/puzzle-ids.json';
 
-const puzzleIds = puzzleIdsData as Record<string, string[]>;
+const puzzleIndex = puzzleIdsData as PuzzleIndexSchema;
+
+function normalizePuzzleIndex(data: PuzzleIndexSchema): Record<string, string[]> {
+  const themes = data?.themes || {};
+  const normalized: Record<string, string[]> = {};
+
+  Object.entries(themes).forEach(([theme, ids]) => {
+    if (!Array.isArray(ids)) return;
+    normalized[theme] = ids.filter((id): id is string => /^[A-Za-z0-9]{5}$/.test(id));
+  });
+
+  return normalized;
+}
+
+const puzzleIds = normalizePuzzleIndex(puzzleIndex);
 
 export const PUZZLE_THEME_LABELS: Record<string, string> = {
   fork: 'Fork',
@@ -42,6 +56,34 @@ interface LichessPuzzleApiResponse {
   };
 }
 
+export class PuzzleFetchError extends Error {
+  code: PuzzleFetchErrorCode;
+  theme: string;
+  requested: number;
+  playable: number;
+
+  constructor(
+    code: PuzzleFetchErrorCode,
+    message: string,
+    theme: string,
+    requested: number,
+    playable: number
+  ) {
+    super(message);
+    this.name = 'PuzzleFetchError';
+    this.code = code;
+    this.theme = theme;
+    this.requested = requested;
+    this.playable = playable;
+  }
+}
+
+function isAbortError(error: unknown): boolean {
+  return error instanceof DOMException
+    ? error.name === 'AbortError'
+    : !!(error && typeof error === 'object' && 'name' in error && (error as { name?: string }).name === 'AbortError');
+}
+
 export function derivePuzzleStartFenFromPgn(pgn: string, initialPly: number): string | null {
   try {
     const parsed = new Chess();
@@ -61,10 +103,11 @@ export function derivePuzzleStartFenFromPgn(pgn: string, initialPly: number): st
   }
 }
 
-async function fetchPuzzle(id: string): Promise<LichessPuzzle | null> {
+async function fetchPuzzle(id: string, abortSignal?: AbortSignal): Promise<LichessPuzzle | null> {
   try {
     const res = await fetch(`https://lichess.org/api/puzzle/${id}`, {
       headers: { Accept: 'application/json' },
+      signal: abortSignal,
     });
     if (!res.ok) return null;
 
@@ -91,29 +134,75 @@ async function fetchPuzzle(id: string): Promise<LichessPuzzle | null> {
       themes: puzzle.themes || [],
       url: `https://lichess.org/training/${puzzle.id}`,
     };
-  } catch {
-    return null;
+  } catch (error) {
+    if (isAbortError(error)) {
+      throw error;
+    }
+    throw error;
   }
 }
 
-export async function fetchPuzzlesForTheme(theme: string, count = 10): Promise<LichessPuzzle[]> {
+interface FetchPuzzlesOptions {
+  abortSignal?: AbortSignal;
+  minPlayable?: number;
+  candidateMultiplier?: number;
+}
+
+export async function fetchPuzzlesForTheme(
+  theme: string,
+  count = 10,
+  options: FetchPuzzlesOptions = {}
+): Promise<LichessPuzzle[]> {
   const ids = puzzleIds[theme];
   if (!ids || ids.length === 0) {
-    return [];
+    throw new PuzzleFetchError(
+      'THEME_UNAVAILABLE',
+      'No puzzle IDs are available for this theme yet.',
+      theme,
+      count,
+      0
+    );
   }
 
+  const minPlayable = Math.max(1, options.minPlayable ?? count);
+  const candidateMultiplier = Math.max(1, options.candidateMultiplier ?? 5);
   const shuffled = [...ids].sort(() => Math.random() - 0.5);
-  const selected = shuffled.slice(0, Math.max(count * 2, count));
+  const selected = shuffled.slice(0, Math.max(count * candidateMultiplier, count));
 
   const puzzles: LichessPuzzle[] = [];
+  let networkFailureCount = 0;
+
   for (const id of selected) {
-    const puzzle = await fetchPuzzle(id);
-    if (puzzle) {
-      puzzles.push(puzzle);
+    if (options.abortSignal?.aborted) {
+      throw new PuzzleFetchError('CANCELLED', 'Puzzle loading was cancelled.', theme, count, puzzles.length);
+    }
+
+    try {
+      const puzzle = await fetchPuzzle(id, options.abortSignal);
+      if (puzzle) {
+        puzzles.push(puzzle);
+      }
+    } catch (error) {
+      if (isAbortError(error)) {
+        throw new PuzzleFetchError('CANCELLED', 'Puzzle loading was cancelled.', theme, count, puzzles.length);
+      }
+      networkFailureCount++;
     }
 
     await new Promise((r) => setTimeout(r, 250));
     if (puzzles.length >= count) break;
+  }
+
+  if (puzzles.length < minPlayable) {
+    const code: PuzzleFetchErrorCode = puzzles.length === 0 && networkFailureCount > 0
+      ? 'NETWORK_ERROR'
+      : 'THEME_UNAVAILABLE';
+
+    const message = code === 'NETWORK_ERROR'
+      ? 'Could not reach Lichess puzzle API. Please retry.'
+      : `Theme "${theme}" is currently unavailable. Found ${puzzles.length}/${minPlayable} playable puzzles.`;
+
+    throw new PuzzleFetchError(code, message, theme, count, puzzles.length);
   }
 
   return puzzles.slice(0, count);

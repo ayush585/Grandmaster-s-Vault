@@ -7,6 +7,14 @@ describe('scoutReducer', () => {
     expect(next.activeTab).toBe('puzzles');
   });
 
+  it('stores preferred puzzle themes', () => {
+    const next = scoutReducer(initialScoutState, {
+      type: 'SET_PREFERRED_PUZZLE_THEMES',
+      themes: ['fork', 'pin'],
+    });
+    expect(next.preferredPuzzleThemes).toEqual(['fork', 'pin']);
+  });
+
   it('tracks puzzle attempts and advances puzzles', () => {
     const stateWithSession = scoutReducer(initialScoutState, {
       type: 'SET_PUZZLE_SESSION',

@@ -8,7 +8,8 @@
     "start": "next start",
     "test": "vitest",
     "test:run": "vitest run",
-    "test:coverage": "vitest run --coverage"
+    "test:coverage": "vitest run --coverage",
+    "puzzles:build-index": "node scripts/generate-puzzle-index.mjs"
   },
   "dependencies": {
     "@tailwindcss/postcss": "^4.2.1",

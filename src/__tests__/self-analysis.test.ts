@@ -20,12 +20,18 @@ const sampleAnalysis: MoveAnalysis[] = [
   },
 ];
 
-function createGame(id: string, savedAt: string, withAnalysis = false): GameData {
+function createGame(
+  id: string,
+  savedAt: string,
+  withAnalysis = false,
+  whiteName = 'Player',
+  blackName = 'Opponent'
+): GameData {
   return {
     id,
     userId: 'u1',
-    whiteName: 'Player',
-    blackName: 'Opponent',
+    whiteName,
+    blackName,
     tournament: 'Test Event',
     timeControl: '10+0',
     date: '2026-01-01',
@@ -66,7 +72,37 @@ describe('self-analysis preparation', () => {
     expect(prepared.selectedCount).toBe(2);
     expect(prepared.reusedCount).toBe(1);
     expect(prepared.toAnalyzeCount).toBe(1);
-    expect(prepared.inferredPlayerName).toBe('Player');
+    expect(prepared.defaultPlayerName).toBe('Player');
+  });
+
+  it('filters by selected identity and side', () => {
+    const games = [
+      createGame('g1', '2026-03-01T00:00:00.000Z', false, 'Player', 'Rival'),
+      createGame('g2', '2026-02-01T00:00:00.000Z', false, 'Rival', 'Player'),
+      createGame('g3', '2026-01-01T00:00:00.000Z', false, 'Someone', 'Else'),
+    ];
+
+    const whiteOnly = prepareSelfAnalysisGames(games, 10, ['Player'], { playerName: 'Player', side: 'white' });
+    expect(whiteOnly.games).toHaveLength(1);
+    expect(whiteOnly.games[0].id).toBe('g1');
+
+    const blackOnly = prepareSelfAnalysisGames(games, 10, ['Player'], { playerName: 'Player', side: 'black' });
+    expect(blackOnly.games).toHaveLength(1);
+    expect(blackOnly.games[0].id).toBe('g2');
+  });
+
+  it('returns empty result for no matching identity/side', () => {
+    const games = [
+      createGame('g1', '2026-03-01T00:00:00.000Z', false, 'Player', 'Rival'),
+    ];
+
+    const prepared = prepareSelfAnalysisGames(games, 10, ['Player'], {
+      playerName: 'Unknown',
+      side: 'both',
+    });
+
+    expect(prepared.games).toHaveLength(0);
+    expect(prepared.selectedCount).toBe(0);
   });
 
   it('still generates report from partially analyzed input', () => {

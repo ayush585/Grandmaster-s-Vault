@@ -1,10 +1,10 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Chessboard } from 'react-chessboard';
 import { Chess } from 'chess.js';
 import { useScout } from '@/contexts/ScoutContext';
-import { createPuzzleSession, fetchPuzzlesForTheme, getAvailableThemes, PUZZLE_THEME_LABELS } from '@/lib/puzzle-api';
+import { createPuzzleSession, fetchPuzzlesForTheme, getAvailableThemes, PUZZLE_THEME_LABELS, PuzzleFetchError } from '@/lib/puzzle-api';
 import { moveToUci, playStrictPuzzleMove } from '@/lib/puzzle-session';
 
 export default function PuzzleTrainer() {
@@ -18,11 +18,16 @@ export default function PuzzleTrainer() {
   const [expectedMove, setExpectedMove] = useState('');
   const [attemptRecorded, setAttemptRecorded] = useState(false);
   const [flipped, setFlipped] = useState(false);
+  const loadControllerRef = useRef<AbortController | null>(null);
 
   const session = state.puzzleSession;
   const currentPuzzle = session?.active ? session.puzzles[session.currentIndex] : null;
 
-  const recommendedThemes = useMemo(() => {
+  const preferredThemes = useMemo(() => {
+    return Array.from(new Set(state.preferredPuzzleThemes || []));
+  }, [state.preferredPuzzleThemes]);
+
+  const reportRecommendedThemes = useMemo(() => {
     const source = [
       ...(state.selfReport?.suggestedPuzzleThemes || []),
       ...(state.opponentReport?.suggestedPuzzleThemes || []),
@@ -30,11 +35,20 @@ export default function PuzzleTrainer() {
     return Array.from(new Set(source));
   }, [state.selfReport, state.opponentReport]);
 
+  const recommendedThemes = useMemo(() => {
+    return Array.from(new Set([...preferredThemes, ...reportRecommendedThemes]));
+  }, [preferredThemes, reportRecommendedThemes]);
+
   const themeOptions = useMemo(() => {
     const all = getAvailableThemes();
-    const ordered = [...recommendedThemes, ...all.filter((t) => !recommendedThemes.includes(t))];
+    const ordered = [...preferredThemes, ...recommendedThemes, ...all.filter((t) => !recommendedThemes.includes(t))];
     return Array.from(new Set(ordered));
-  }, [recommendedThemes]);
+  }, [preferredThemes, recommendedThemes]);
+
+  useEffect(() => {
+    if (preferredThemes.length === 0) return;
+    setSelectedTheme((current) => (current === preferredThemes[0] ? current : preferredThemes[0]));
+  }, [preferredThemes]);
 
   const initializePuzzle = useCallback(() => {
     if (!currentPuzzle) {
@@ -71,19 +85,27 @@ export default function PuzzleTrainer() {
   );
 
   const handleStartSession = useCallback(async () => {
+    loadControllerRef.current?.abort();
+    loadControllerRef.current = new AbortController();
     setError('');
     setLoading(true);
 
     try {
-      const puzzles = await fetchPuzzlesForTheme(selectedTheme, 10);
-      if (puzzles.length === 0) {
-        setError('Could not load playable puzzles for this theme. Try another theme.');
-        return;
-      }
+      const puzzles = await fetchPuzzlesForTheme(selectedTheme, 10, { abortSignal: loadControllerRef.current.signal });
 
       dispatch({ type: 'SET_PUZZLE_SESSION', session: createPuzzleSession(selectedTheme, puzzles) });
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Failed to start puzzle session.');
+      if (e instanceof PuzzleFetchError) {
+        if (e.code === 'CANCELLED') {
+          setError('Puzzle loading was cancelled.');
+        } else if (e.code === 'THEME_UNAVAILABLE') {
+          setError(`Theme unavailable right now: ${e.playable}/${e.requested} playable puzzles loaded. Try another theme.`);
+        } else {
+          setError(e.message);
+        }
+      } else {
+        setError(e instanceof Error ? e.message : 'Failed to start puzzle session.');
+      }
     } finally {
       setLoading(false);
     }
@@ -140,6 +162,12 @@ export default function PuzzleTrainer() {
   const failedCount = session?.attempts.filter((a) => a.result === 'failed').length || 0;
   const skippedCount = session?.attempts.filter((a) => a.result === 'skipped').length || 0;
 
+  useEffect(() => {
+    return () => {
+      loadControllerRef.current?.abort();
+    };
+  }, []);
+
   return (
     <div className="space-y-4">
       <div className="bg-bg-primary border border-border rounded-lg p-4">
@@ -153,10 +181,28 @@ export default function PuzzleTrainer() {
         </div>
 
         <div className="mb-3">
+          <p className="text-[0.75rem] text-text-secondary mb-2">Preferred themes</p>
+          <div className="flex flex-wrap gap-1.5">
+            {preferredThemes.length === 0 && <span className="text-[0.75rem] text-text-muted">No preferred themes yet.</span>}
+            {preferredThemes.map((theme) => (
+              <button
+                key={theme}
+                onClick={() => setSelectedTheme(theme)}
+                className={`px-2.5 py-1 rounded-md text-[0.72rem] border transition-all cursor-pointer
+                  ${selectedTheme === theme
+                    ? 'bg-bg-tertiary text-gold border-gold/35'
+                    : 'bg-bg-secondary text-text-secondary border-border hover:text-text-primary'}`}
+              >
+                {PUZZLE_THEME_LABELS[theme] || theme}
+              </button>
+            ))}
+          </div>
+        </div>
+        <div className="mb-3">
           <p className="text-[0.75rem] text-text-secondary mb-2">Recommended themes</p>
           <div className="flex flex-wrap gap-1.5">
-            {recommendedThemes.length === 0 && <span className="text-[0.75rem] text-text-muted">No recommendations yet.</span>}
-            {recommendedThemes.map((theme) => (
+            {reportRecommendedThemes.length === 0 && <span className="text-[0.75rem] text-text-muted">No recommendations yet.</span>}
+            {reportRecommendedThemes.map((theme) => (
               <button
                 key={theme}
                 onClick={() => setSelectedTheme(theme)}
